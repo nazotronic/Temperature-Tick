@@ -81,6 +81,14 @@ void MqttManager::addElementCodes(DynamicArray<String>* array) {
 }
 
 
+void MqttManager::addObserver(IObserver* observer) {
+	if (observer == NULL) {
+		return;
+	}
+
+	observers.add(observer);
+}
+
 bool MqttManager::handleEvent(const char* code, void* data, uint8_t type) {
 	if (getWorkFlag()) {
 		if (mqtt_client.publish(code, String(POINTER_TO_TYPE(data, type)).c_str()) ) {
@@ -90,14 +98,6 @@ bool MqttManager::handleEvent(const char* code, void* data, uint8_t type) {
 	}
 
 	return false;
-}
-
-void MqttManager::addObserver(IObserver* observer) {
-	if (observer == NULL) {
-		return;
-	}
-
-	observers.add(observer);
 }
 
 
@@ -214,5 +214,6 @@ void MqttManager::connect() {
 		if (mqtt_client.connect("ESP8266Client", getSsid(), getPass()) ) {
 			mqtt_client.subscribe("/#");
 		}
+		Serial.println("connect mqtt");
 	}
 }

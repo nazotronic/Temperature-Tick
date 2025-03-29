@@ -10,10 +10,12 @@
 #include "data.h"
 
 void Web::init() {
+	update_codes += "_RSrf,RTDt,RTDst";
 	update_codes += "_NSm,_NSWs,_NSAs,_NSAp,";
 	update_codes += "_MSwf,_MSSs,_MSSp,_MSAs,_MSAp,";
 	update_codes += "_BSwf,_BSa,";
 	update_codes += "_SSrdt,";
+	update_codes += "_RSif,_RSm,_RSTsi,_RSTst,_RSTd,_RSTm,_RSTerf,";
 	update_codes += "_SSsf,_SSst,";
 
 	ui.setFS(&LittleFS);
@@ -21,6 +23,7 @@ void Web::init() {
 	
 	ui.attachBuild([this]() {
 		SensorsManager* sensors = system->getSensorsManager();
+		RelayManager* relay = system->getRelayManager();
 		NetworkManager* network = system->getNetworkManager();
 		MqttManager* mqtt = system->getMqttManager();
 		BlynkManager* blynk = system->getBlynkManager();
@@ -37,7 +40,7 @@ void Web::init() {
 			update_codes += "_SSDa";
 			update_codes += i;
 			update_codes += ",";
-			update_codes += "_SSDr";
+			update_codes += "_SSDrr";
 			update_codes += i;
 			update_codes += ",";
 			update_codes += "_SSDc";
@@ -59,8 +62,8 @@ void Web::init() {
 
 		GP.BUILD_BEGIN(550);
 		GP.THEME(GP_DARK);
-		GP.UPDATE(update_codes, SEC_TO_MLS(WEB_UPDATE_TIME));
-		
+		GP.UPDATE(update_codes, ui.uri("/settings") ? SEC_TO_MLS(WEB_UPDATE_TIME) + 5 : SEC_TO_MLS(WEB_UPDATE_TIME));
+	
 		GP.TITLE("nazotronic");
 		GP.NAV_TABS_LINKS("/,/settings,/memory", "Home,Settings,Memory", GP_ORANGE);
 		GP.HR();
@@ -84,6 +87,31 @@ void Web::init() {
 						else {
 							GP.PLAIN("err", String("SDDt") + i);
 						}
+					);
+				}
+			);
+
+			M_BLOCK(GP_THIN,
+				GP.LABEL("Relay");
+
+				M_BOX(GP_LEFT,
+					GP.LABEL("Relay:");
+					GP.SWITCH("_RSrf", relay->getRelayFlag());
+				);
+
+				if (relay->getMode() == RELAY_MODE_THERM) {
+					M_BOX(GP_LEFT,
+						GP.LABEL("Thermostat:");
+
+						if (!relay->getThermStatus()) {
+							GP.PLAIN(String(relay->getThermT(), 1) + "°", "RTDt");
+						}
+						else {
+							GP.PLAIN("err", "RTDt");
+						}
+
+						GP.PLAIN(" -> ");
+						GP.PLAIN(String(relay->getThermSetT(), 1) + "°", "RTDst");
 					);
 				}
 			);
@@ -223,6 +251,58 @@ void Web::init() {
 				);
 			);
 			GP.BREAK();
+
+			M_SPOILER("Relay", GP_ORANGE,
+				char select_array[20] = "NONE,";
+
+				for (uint8_t i = 0;i < sensors->getDS18B20Count();i++) {
+					strcat(select_array, sensors->getDS18B20Name(i));
+					
+					if (i != sensors->getDS18B20Count() - 1) {
+						strcat(select_array, ",");
+					}
+				}
+				
+				M_BOX(GP_LEFT,
+					GP.LABEL("Invert:");
+					GP.SWITCH("_RSif", relay->getInvertFlag());
+				);
+
+				M_BOX(GP_LEFT,
+					GP.LABEL("Mode:");
+					GP.SELECT(String("_RSm"), "simple,thermostat", relay->getMode());
+				);
+
+				M_BLOCK(GP_THIN,
+					GP.TITLE("Thermostat");
+	
+					M_BOX(GP_LEFT,
+						GP.LABEL("Sensor:");
+						GP.SELECT("_RSTsi", select_array, relay->getThermSensor() + 1);
+					);
+	
+					M_BOX(GP_LEFT,
+						GP.LABEL("T:");
+						GP.NUMBER_F("_RSTst", "", relay->getThermSetT(), 2, "25%");
+					);
+
+					M_BOX(GP_LEFT,
+						GP.LABEL("Delta:");
+						GP.NUMBER_F("_RSTd", "", relay->getThermDelta(), 2, "25%");
+					);
+
+					M_BOX(GP_LEFT,
+						GP.LABEL("Mode:");
+						GP.SELECT(String("_RSTm"), "heating,cooling", relay->getThermMode());
+					);
+
+					M_BOX(GP_LEFT,
+						GP.LABEL("Error Rele:");
+						GP.SWITCH("_RSTerf", relay->getThermErrorRelayFlag());
+					);
+				);
+			);
+			GP.BREAK(); 
 	
 			M_SPOILER("System", GP_ORANGE,
 				M_BOX(GP_LEFT,
@@ -255,6 +335,7 @@ void Web::init() {
 
 	ui.attach([this]() {
 		SensorsManager* sensors = system->getSensorsManager();
+		RelayManager* relay = system->getRelayManager();
 		NetworkManager* network = system->getNetworkManager();
 		MqttManager* mqtt = system->getMqttManager();
 		BlynkManager* blynk = system->getBlynkManager();
@@ -266,6 +347,26 @@ void Web::init() {
 				ui.answer(!sensors->getDS18B20Status(i) ? String(sensors->getDS18B20T(i), 1) + "°" : String("err"));
 				return;
 			}
+		}
+
+		if (ui.update("_RSrf")) {
+			ui.answer(relay->getRelayFlag());
+			return;
+		}
+
+		if (ui.update("RTDt")) {
+			ui.answer(!relay->getThermStatus() ? String(relay->getThermT(), 1) + "°" : String("err"));
+			return;
+		}
+		if (ui.update("RTDst")) {
+			ui.answer(String(relay->getThermSetT(), 1));
+			return;
+		}
+
+		// parse
+		if (ui.click("_RSrf")) {
+			relay->setRelayFlag(ui.getBool());
+			return;
 		}
 		/* --- Home --- */
 
@@ -525,6 +626,68 @@ void Web::init() {
 			}
 		}
 		/* --- SensorsManager --- */
+
+		/* --- RelayManager --- */
+		// update
+		if (ui.update("_RSif")) {
+			ui.answer(relay->getInvertFlag());
+			return;
+		}
+		if (ui.update("_RSm")) {
+			ui.answer(relay->getMode());
+			return;
+		}
+		if (ui.update("_RSTsi")) {
+			ui.answer(relay->getThermSensor() + 1);
+			return;
+		}
+		if (ui.update("_RSTst")) {
+			ui.answer(relay->getThermSetT());
+			return;
+		}
+		if (ui.update("_RSTd")) {
+			ui.answer(relay->getThermDelta());
+			return;
+		}
+		if (ui.update("_RSTm")) {
+			ui.answer(relay->getThermMode());
+			return;
+		}
+		if (ui.update("_RSTerf")) {
+			ui.answer(relay->getThermErrorRelayFlag());
+			return;
+		}
+		
+		// parse
+		if (ui.click("_RSif")) {
+			relay->setInvertFlag(ui.getBool());
+			return;
+		}
+		if (ui.click("_RSm")) {
+			relay->setMode(ui.getInt());
+			return;
+		}
+		if (ui.click("_RSTsi")) {
+			relay->setThermSensor(ui.getInt() - 1);
+			return;
+		}
+		if (ui.click("_RSTst")) {
+			relay->setThermSetT(ui.getFloat());
+			return;
+		}
+		if (ui.click("_RSTd")) {
+			relay->setThermDelta(ui.getFloat());
+			return;
+		}
+		if (ui.click("_RSTm")) {
+			relay->setThermMode(ui.getInt());
+			return;
+		}
+		if (ui.click("_RSTerf")) {
+			relay->setThermErrorRelayFlag(ui.getBool());
+			return;
+		}
+		/* --- RelayManager --- */
 
 		/* --- SystemManager --- */
 		// update

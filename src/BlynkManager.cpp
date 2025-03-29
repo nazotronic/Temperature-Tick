@@ -57,6 +57,14 @@ void BlynkManager::addElementCodes(DynamicArray<String>* array) {
 }
 
 
+void BlynkManager::addObserver(IObserver* observer) {
+	if (observer == NULL) {
+		return;
+	}
+
+	observers.add(observer);
+}
+
 bool BlynkManager::handleEvent(const char* code, void* data, uint8_t type) {
 	if (getWorkFlag() && getStatus()) {
 		for (uint8_t i = 0;i < getLinksCount();i++) {
@@ -71,14 +79,6 @@ bool BlynkManager::handleEvent(const char* code, void* data, uint8_t type) {
 	}
 
 	return false;
-}
-
-void BlynkManager::addObserver(IObserver* observer) {
-	if (observer == NULL) {
-		return;
-	}
-
-	observers.add(observer);
 }
 
 
@@ -268,6 +268,8 @@ void BlynkManager::connect() {
 		
 		Blynk.config(this->auth);
 		Blynk.connect(10);
+
+		Serial.println("connect blynk");
 	}
 }
 

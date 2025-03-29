@@ -162,6 +162,8 @@ bool NetworkManager::connect(String ssid, String pass, uint8_t connect_time, boo
 			
 			WiFi.begin(getWifiSsid(), getWifiPass());
 			connect_status = getStatus();
+
+			Serial.println("connect wifi");
 		}
 	}
 	else {

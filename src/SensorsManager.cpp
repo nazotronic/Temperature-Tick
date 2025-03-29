@@ -54,20 +54,20 @@ void SensorsManager::addElementCodes(DynamicArray<String>* array) {
 }
 
 
-bool SensorsManager::handleEvent(const char* code, void* data, uint8_t type) {
-	if (strstr(code, "/sensors/data") != NULL) {
-		return true;
-	}
-
-	return false;
-}
-
 void SensorsManager::addObserver(IObserver* observer) {
 	if (observer == NULL) {
 		return;
 	}
 
 	observers.add(observer);
+}
+
+bool SensorsManager::handleEvent(const char* code, void* data, uint8_t type) {
+	if (strstr(code, "/sensors/data") != NULL) {
+		return true;
+	}
+
+	return false;
 }
 
 

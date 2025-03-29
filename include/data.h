@@ -30,8 +30,9 @@
 #include <BlynkSimpleEsp8266.h>
 
 /* --- Ports --- */
-#define DS18B20_PORT D4
+#define DS18B20_PORT D5
 #define BUTTON_PORT D6
+#define RELAY_PORT D7
 
 /* --- Types --- */
 #define TYPE_BOOL 0
@@ -52,6 +53,15 @@
 #define DEFAULT_READ_DATA_TIME 5 // sec
 #define DEFAULT_DS18B20_NAME "Tn"
 #define DEFAULT_DS18B20_RESOLUTION 12
+
+/* RelayManager */
+#define DEFAULT_RELAY_INVERT_FLAG true
+#define DEFAULT_RELAY_MODE 0
+#define DEFAULT_RELAY_THERM_SENSOR_INDEX -1
+#define DEFAULT_RELAY_THERM_T 20.0
+#define DEFAULT_RELAY_THERM_DELTA 1.0
+#define DEFAULT_RELAY_THERM_MODE 0
+#define DEFAULT_RELAY_THERM_ERROR_RELE_FLAG false
 
 /* NetworkManager */
 #define DEFAULT_NETWORK_MODE NETWORK_AUTO
@@ -76,6 +86,13 @@
 #define DS_SENSORS_MAX_COUNT 10
 #define DS_NAME_SIZE 3
 
+/* RelayManager */
+#define RELAY_MODE_SIMPLE 0
+#define RELAY_MODE_THERM 1
+
+#define RELAY_THERM_MODE_HEATING 0
+#define RELAY_THERM_MODE_COOLING 1
+
 /* NetworkManager */
 #define NETWORK_OFF 0
 #define NETWORK_STA 1
@@ -85,7 +102,7 @@
 #define NETWORK_RECONNECT_TIME 20 // sec
 
 /* Web */
-#define WEB_UPDATE_TIME 10 // sec
+#define WEB_UPDATE_TIME 5 // sec
 
 /* BlynkManager */
 #define BLYNK_LINKS_MAX 20
@@ -235,11 +252,75 @@ private:
 	/* --- settings --- */
 	uint8_t read_data_time;
 
-	DynamicArray<IObserver*> observers;
 	DynamicArray<ds18b20_data_t> ds18b20_data;
 
 	/* --- variables --- */
+	DynamicArray<IObserver*> observers;
 	uint32_t read_data_timer;
+};
+
+class RelayManager : public IManager {
+public:
+	RelayManager();
+
+	/* --- IManager --- */
+	void makeDefault() override;
+	void begin() override;
+	void tick() override;
+	void addElementCodes(DynamicArray<String>* array) override;
+
+	/* --- IObserver --- */
+	void addObserver(IObserver* observer) override;
+	bool handleEvent(const char* code, void* data, uint8_t type) override;
+
+	void writeSettings(char* buffer);
+	void readSettings(char* buffer);
+
+	void setSystemManager(SystemManager* system);
+	void setRelayFlag(bool relay_flag, bool sync_flag = false);
+
+	void setInvertFlag(bool invert_flag);
+	void setMode(uint8_t mode);
+
+	void setThermSensor(int8_t ds18b20_index);
+	void setThermSetT(float t);
+	void setThermDelta(float delta);
+	void setThermMode(uint8_t mode);
+	void setThermErrorRelayFlag(bool relay_flag);
+
+	bool getRelayFlag();
+
+	bool getInvertFlag();
+	uint8_t getMode();
+	
+	uint8_t getThermStatus();
+	float getThermT();
+	int8_t getThermSensor();
+	float getThermSetT();
+	float getThermDelta();
+	uint8_t getThermMode();
+	bool getThermErrorRelayFlag();
+
+private:
+	void notifyObservers(String code, void* data, uint8_t type);
+	void relayTick();
+
+	/* --- classes & structures --- */
+	SystemManager* system;
+
+	/* --- settings --- */
+	bool invert_flag;
+	uint8_t mode;
+
+	int8_t therm_sensor_index;
+	float therm_set_t;
+	float therm_delta;
+	uint8_t therm_mode;
+	bool therm_error_relay_flag;
+
+	/* --- variables --- */
+	DynamicArray<IObserver*> observers;
+	bool relay_flag;
 };
 
 class Web {
@@ -497,6 +578,7 @@ public:
 	void setBlynkSentFlag(bool flag);
 
 	SensorsManager* getSensorsManager();
+	RelayManager* getRelayManager();
 	NetworkManager* getNetworkManager();
 	MqttManager* getMqttManager();
 	BlynkManager* getBlynkManager();
@@ -518,6 +600,7 @@ private:
 
 	/* --- classes & structures --- */
 	SensorsManager sensors;
+	RelayManager relay;
 	NetworkManager network;
 	MqttManager mqtt;
 	BlynkManager blynk;

@@ -40,6 +40,12 @@ void SystemManager::begin() {
 	sensors.addObserver(&blynk);
 	/* SensorsManager */
 
+	/* RelayManager */
+	relay.setSystemManager(this);
+	relay.addObserver(&mqtt);
+	relay.addObserver(&blynk);
+	/* RelayManager */
+
 	/* NetworkManager */
 	network.setSystemManager(this);
 	/* NetworkManager */
@@ -47,12 +53,14 @@ void SystemManager::begin() {
 	/* BlynkManager */
 	blynk.setSystemManager(this);
 	blynk.addObserver(this);
+	blynk.addObserver(&relay);
 	/* BlynkManager */
 
 	/* MqttManager */
 	mqtt.setSystemManager(this);
 	mqtt.addObserver(this);
 	mqtt.addObserver(&sensors);
+	mqtt.addObserver(&relay);
 	/* MqttManager */
 
 	readSettings();
@@ -64,6 +72,7 @@ void SystemManager::begin() {
 	}
 
 	sensors.begin();
+	relay.begin();
 	network.begin();
 	mqtt.begin();
 	blynk.begin();
@@ -85,6 +94,11 @@ void SystemManager::tick() {
 	}
 
 	sensors.tick();
+
+	if (!getSleepFlag()) {
+		relay.tick();
+	}
+
 	network.tick();
 	mqtt.tick();
 	blynk.tick();
@@ -106,30 +120,9 @@ void SystemManager::addElementCodes(DynamicArray<String>* array) {
 		return;
 	}
 
-	array->add(String("/system/settings/sleep_flag"));
-	array->add(String("/system/settings/sleep_time"));
 	array->add(String("/system/settings/reset"));
 }
 
-
-bool SystemManager::handleEvent(const char* code, void* data, uint8_t type) {
-	if (!strcmp(code, "/system/settings/sleep_flag")) {
-		setSleepFlag(POINTER_TO_TYPE(data, type));
-		return true;
-	}
-
-	if (!strcmp(code, "/system/settings/sleep_time")) {
-		setSleepTime(POINTER_TO_TYPE(data, type));
-		return true;
-	}
-
-	if (!strcmp(code, "/system/settings/reset")) {
-		reset();
-		return true;
-	}
-
-	return false;
-}
 
 void SystemManager::addObserver(IObserver* observer) {
 	if (observer == NULL) {
@@ -137,6 +130,15 @@ void SystemManager::addObserver(IObserver* observer) {
 	}
 
 	observers.add(observer);
+}
+
+bool SystemManager::handleEvent(const char* code, void* data, uint8_t type) {
+	if (!strcmp(code, "/system/settings/reset")) {
+		reset();
+		return true;
+	}
+
+	return false;
 }
 
 
@@ -163,6 +165,7 @@ void SystemManager::makeElementCodesList(DynamicArray<String>* array) {
 
 	addElementCodes(array);
 	sensors.addElementCodes(array);
+	relay.addElementCodes(array);
 	network.addElementCodes(array);
 	mqtt.addElementCodes(array);
 	blynk.addElementCodes(array);
@@ -193,12 +196,10 @@ void SystemManager::handleElementCodeUpdate(String previous_code, String new_cod
 
 void SystemManager::setSleepFlag(bool sleep_flag) {
 	this->sleep_flag = sleep_flag;
-	notifyObservers("/system/settings/sleep_flag", &this->sleep_flag, TYPE_BOOL);
 }
 
 void SystemManager::setSleepTime(uint8_t sleep_time) {
 	this->sleep_time = sleep_time;
-	notifyObservers("/system/settings/sleep_time", &this->sleep_time, TYPE_UINT8_T);
 }
 
 
@@ -221,6 +222,10 @@ void SystemManager::setBlynkSentFlag(bool flag) {
 
 SensorsManager* SystemManager::getSensorsManager() {
 	return &sensors;
+}
+
+RelayManager* SystemManager::getRelayManager() {
+	return &relay;
 }
 
 NetworkManager* SystemManager::getNetworkManager() {
@@ -284,6 +289,7 @@ void SystemManager::saveSettings(bool ignore_flag) {
 	setParameter(buffer, "SSst", getSleepTime());
 
 	sensors.writeSettings(buffer);
+	relay.writeSettings(buffer);
 	network.writeSettings(buffer);
 	mqtt.writeSettings(buffer);
 	blynk.writeSettings(buffer);
@@ -316,6 +322,7 @@ void SystemManager::readSettings() {
 	setSleepTime(sleep_time);
 	
 	sensors.readSettings(buffer);
+	relay.readSettings(buffer);
 	network.readSettings(buffer);
 	mqtt.readSettings(buffer);
 	blynk.readSettings(buffer);
